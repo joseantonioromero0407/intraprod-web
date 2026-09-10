@@ -1,0 +1,5 @@
+.vercel/
+.lighthouse-profile/
+lighthouse-*.json
+.DS_Store
+Thumbs.db
