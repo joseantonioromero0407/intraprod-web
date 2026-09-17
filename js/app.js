@@ -9,9 +9,7 @@
   let focusBeforeMenu = null;
 
   const setHeaderState = () => {
-    if (header) {
-      header.classList.toggle('is-scrolled', window.scrollY > 18);
-    }
+    header?.classList.toggle('is-scrolled', window.scrollY > 18);
   };
 
   const setMenuState = (open, returnFocus = false) => {
@@ -37,14 +35,15 @@
     if (!menu) return;
     if (mobileQuery.matches) {
       setMenuState(false);
-    } else {
-      menu.classList.remove('is-open');
-      menuClose?.classList.remove('is-open');
-      menuToggle?.setAttribute('aria-expanded', 'false');
-      menuToggle?.setAttribute('aria-label', 'Abrir menú');
-      menu.setAttribute('aria-hidden', 'false');
-      document.body.classList.remove('menu-open');
+      return;
     }
+
+    menu.classList.remove('is-open');
+    menuClose?.classList.remove('is-open');
+    menuToggle?.setAttribute('aria-expanded', 'false');
+    menuToggle?.setAttribute('aria-label', 'Abrir menú');
+    menu.setAttribute('aria-hidden', 'false');
+    document.body.classList.remove('menu-open');
   };
 
   menuToggle?.addEventListener('click', () => {
@@ -81,10 +80,21 @@
     }
   });
 
-  mobileQuery.addEventListener?.('change', syncMenuMode);
+  if (typeof mobileQuery.addEventListener === 'function') {
+    mobileQuery.addEventListener('change', syncMenuMode);
+  } else {
+    mobileQuery.addListener(syncMenuMode);
+  }
+
   window.addEventListener('scroll', setHeaderState, { passive: true });
   setHeaderState();
   syncMenuMode();
+
+  document.querySelectorAll('[data-stagger]').forEach((group) => {
+    group.querySelectorAll(':scope > [data-reveal]').forEach((item, index) => {
+      item.style.setProperty('--stagger-index', String(index));
+    });
+  });
 
   const revealItems = document.querySelectorAll('[data-reveal]');
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -103,14 +113,107 @@
     revealItems.forEach((item) => observer.observe(item));
   }
 
+  const UTM_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
+  const UTM_STORAGE_KEY = 'intraprod_utm';
+
+  const readStoredUtm = () => {
+    try {
+      const stored = JSON.parse(sessionStorage.getItem(UTM_STORAGE_KEY) || '{}');
+      return UTM_KEYS.reduce((result, key) => {
+        if (typeof stored[key] === 'string' && stored[key]) result[key] = stored[key];
+        return result;
+      }, {});
+    } catch {
+      return {};
+    }
+  };
+
+  const persistUtm = () => {
+    const params = new URLSearchParams(window.location.search);
+    const utm = readStoredUtm();
+    let changed = false;
+
+    UTM_KEYS.forEach((key) => {
+      const value = params.get(key);
+      if (!value) return;
+      utm[key] = value.slice(0, 180);
+      changed = true;
+    });
+
+    if (changed) {
+      try {
+        sessionStorage.setItem(UTM_STORAGE_KEY, JSON.stringify(utm));
+      } catch {
+        // La navegación continúa aunque el almacenamiento esté deshabilitado.
+      }
+    }
+
+    return utm;
+  };
+
+  const utmContext = persistUtm();
+
+  const trackEvent = (eventName, source, parameters = {}) => {
+    if (!eventName) return;
+
+    const detail = {
+      event_name: eventName,
+      event_source: source || 'unspecified',
+      page_path: window.location.pathname,
+      ...utmContext,
+      ...parameters
+    };
+
+    document.dispatchEvent(new CustomEvent('intraprod:analytics', { detail }));
+    document.dispatchEvent(new CustomEvent('intraprod:conversion', { detail }));
+
+    if (typeof window.fbq === 'function') {
+      const standardEvent = eventName === 'Contact' || eventName === 'ViewContent';
+      window.fbq(standardEvent ? 'track' : 'trackCustom', eventName, detail);
+    }
+
+    if (typeof window.gtag === 'function') {
+      window.gtag('event', eventName, detail);
+    }
+  };
+
+  window.IntraprodAnalytics = Object.freeze({
+    track: trackEvent,
+    getUtm: () => ({ ...utmContext })
+  });
+
+  document.addEventListener('click', (event) => {
+    const target = event.target.closest('[data-track-event]');
+    if (!target) return;
+
+    const eventName = target.dataset.trackEvent;
+    const source = target.dataset.trackSource;
+    const productCategory = target.dataset.productCategory;
+    const parameters = productCategory ? { product_category: productCategory } : {};
+    trackEvent(eventName, source, parameters);
+
+    if (eventName === 'Contact' && target.closest('a[href*="wa.me"]')) {
+      trackEvent('WhatsAppClick', source, parameters);
+    }
+  });
+
+  if (document.body.dataset.pageCategory === 'astom_b') {
+    trackEvent('ViewContent', 'astom_landing', { product_category: 'astom_b' });
+  }
+
+  const floatingWhatsapp = document.querySelector('.floating-whatsapp');
+  const astomHeroWhatsapp = document.querySelector('.astom-hero .button[href*="wa.me"]');
+  if (floatingWhatsapp && astomHeroWhatsapp && 'IntersectionObserver' in window) {
+    const floatingControl = new IntersectionObserver(([entry]) => {
+      floatingWhatsapp.classList.toggle('is-suppressed', entry.isIntersecting);
+    }, { threshold: 0.18 });
+    floatingControl.observe(astomHeroWhatsapp);
+  }
+
   const catalog = document.querySelector('[data-catalog]');
   const catalogButton = catalog?.querySelector('[data-catalog-load]');
   const catalogViewer = catalog?.querySelector('[data-catalog-viewer]');
   const catalogStatus = document.querySelector('[data-catalog-status]');
-
-  const publishConversionSignal = (type) => {
-    document.dispatchEvent(new CustomEvent('intraprod:conversion', { detail: { type } }));
-  };
 
   catalogButton?.addEventListener('click', () => {
     if (!catalog || !catalogViewer || catalog.dataset.loading === 'true' || catalog.dataset.loaded === 'true') return;
@@ -137,7 +240,7 @@
       catalog.dataset.loading = 'false';
       catalog.classList.remove('is-loading');
       catalogButton.disabled = false;
-      if (catalogStatus) catalogStatus.textContent = 'El visor tardó demasiado. Puedes intentarlo otra vez o abrir el catálogo en pantalla completa.';
+      if (catalogStatus) catalogStatus.textContent = 'El visor tardó demasiado. Intenta nuevamente o abre el catálogo en pantalla completa.';
     }, 60000);
 
     frame.addEventListener('load', () => {
@@ -151,11 +254,5 @@
 
     frame.src = source;
     catalogViewer.append(frame);
-    publishConversionSignal('catalog_open');
-  });
-
-  document.addEventListener('click', (event) => {
-    const link = event.target.closest('a[href*="wa.me"]');
-    if (link) publishConversionSignal('whatsapp_click');
   });
 })();

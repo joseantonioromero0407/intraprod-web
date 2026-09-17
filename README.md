@@ -1,78 +1,63 @@
 # INTRAPROD Web
 
-Sitio corporativo estático de INTRAPROD, importadora y distribuidora con atención en Cochabamba, Bolivia.
+Sitio corporativo estático de INTRAPROD y landing independiente de calefones ASTOM B. Usa HTML, CSS y JavaScript nativo y puede alojarse en Vercel, Netlify, Cloudflare Pages, cPanel, Hostinger o cualquier servidor estático.
 
 ## Estructura
 
 ```text
 /
 ├── index.html
-├── calefones/
-│   └── index.html
-├── css/
-│   └── style.css
-├── js/
-│   └── app.js
-├── assets/
-│   ├── icons/
-│   ├── images/
-│   └── logos/
+├── calefones/index.html
+├── css/style.css
+├── js/app.js
+├── assets/{icons,images,logos}/
 ├── robots.txt
 └── sitemap.xml
 ```
 
-No requiere compilación ni un framework. Puede publicarse en Vercel, Netlify, Cloudflare Pages, cPanel, Hostinger o cualquier servidor de archivos estáticos.
+Para trabajar localmente, sirve la raíz con un servidor HTTP, por ejemplo `python -m http.server 4173`, y abre `http://localhost:4173/`.
 
-## Desarrollo local
+## Contenido comercial
 
-Sirve la carpeta raíz con cualquier servidor HTTP estático. No abras los archivos con `file://`, porque las rutas y algunas políticas del navegador se comportan de forma distinta.
+- WhatsApp general: `+591 76697191`.
+- WhatsApp ASTOM B: `+591 69900093`.
+- Catálogo de tapas: enlaces de Google Drive en `index.html`.
+- Catálogo ASTOM B: `data-catalog-src` y CTA de pantalla completa en `calefones/index.html`.
 
-Ejemplo con Python:
-
-```bash
-python -m http.server 4173
-```
-
-Luego abre `http://localhost:4173/`.
+El contacto ASTOM B es intencionalmente distinto. Cambia cada número y mensaje en los HTML sin unificarlos automáticamente.
 
 ## Catálogo ASTOM B
 
-El catálogo de Canva se carga solo después de pulsar **Ver catálogo interactivo** en `/calefones/`. El HTML inicial no incluye ningún `iframe` y no debe generar solicitudes a Canva antes de esa interacción.
+El catálogo Canva no forma parte de la carga inicial. `js/app.js` crea un único iframe después de pulsar **Ver catálogo interactivo**. No añadas la URL de Canva a un atributo `src` inicial.
 
-La URL del visor está en el atributo `data-catalog-src` de `calefones/index.html`. La URL para pantalla completa aparece en el CTA de la misma sección.
+El logotipo web ASTOM B se exportó del PDF oficial proporcionado y está en `assets/logos/astom-b-logo-official.*`. Conserva sus proporciones y colores.
 
-## Contactos
+## Analítica y UTM
 
-- WhatsApp general: `+591 76697191`
-- WhatsApp ASTOM B: `+591 69900093`
-- Correo: `intraprod.bolivia@gmail.com`
+`js/app.js` centraliza los eventos en `window.IntraprodAnalytics` y conserva durante la sesión `utm_source`, `utm_medium`, `utm_campaign`, `utm_content` y `utm_term`. No almacena datos personales.
 
-El contacto ASTOM B es intencionalmente distinto. Revisa ambos números por separado antes de actualizar enlaces.
+Eventos preparados:
 
-## Cambio futuro de dominio
+- `Contact` y `WhatsAppClick` para WhatsApp.
+- `ViewContent` para `/calefones/`.
+- `CatalogView` para catálogos.
+- `FindLocation` para Google Maps.
 
-Mientras no exista un dominio corporativo, los metadatos usan `https://intraprod-web.vercel.app`. Cuando se migre el dominio, reemplaza esa base en:
+Los CTA indican su origen mediante `data-track-source`. Si `fbq` o `gtag` existen, el controlador les envía los eventos automáticamente.
 
-- canonical, Open Graph y datos estructurados de `index.html`;
-- canonical, Open Graph y datos estructurados de `calefones/index.html`;
+Para activar Meta Pixel, instala el script oficial con el ID real antes de `app.js`. Para GA4, instala `gtag.js` con el ID real. No agregues identificadores de ejemplo. Valida siempre en Preview antes de publicar.
+
+## Dominio y SEO
+
+El dominio actual es `https://intraprod-web.vercel.app`. Cuando exista un dominio corporativo, reemplázalo en:
+
+- canonical, Open Graph y schema de ambos HTML;
 - `robots.txt`;
-- `sitemap.xml`.
+- `sitemap.xml`;
+- propiedad de Google Search Console.
 
-Las rutas internas y los recursos usan rutas relativas para mantener compatibilidad con hosting estático tradicional.
-
-## Analítica futura
-
-No se incluyen IDs ni scripts activos de Meta Pixel o Google Analytics. `js/app.js` publica el evento local `intraprod:conversion` con los tipos `whatsapp_click` y `catalog_open`. Una integración futura puede escuchar ese evento y enviarlo al proveedor configurado:
-
-```js
-document.addEventListener('intraprod:conversion', (event) => {
-  // Integrar aquí GA4, Meta Pixel u otra herramienta con IDs reales.
-  console.debug(event.detail.type);
-});
-```
-
-Google Search Console se configura cuando el dominio definitivo esté disponible y verificado.
+Al crear o eliminar páginas reales, actualiza `sitemap.xml`, su `lastmod` y la referencia del sitemap en `robots.txt`.
 
 ## Despliegue
 
-Las ramas distintas de `main` pueden generar Preview Deployments mediante la integración de Git de Vercel. No se debe promover un Preview a producción hasta completar las comprobaciones responsive, de enlaces, consola y carga diferida del catálogo.
+La integración Git de Vercel genera Preview Deployments para ramas y producción para `main`. Antes de fusionar, verifica desktop, tablet, iPhone, Android, enlaces, consola, SEO y que Canva no realice solicitudes antes del clic.
